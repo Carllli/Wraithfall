@@ -1,0 +1,202 @@
+using System.Collections;
+using UnityEngine;
+
+public class Enemy_shelder : MonoBehaviour
+{
+    public float moveSpeed = 3f;
+    public float moveDuration = 2f;
+    public float stopDuration = 1f;
+    public float idleDuration = 3f; // ���� �� Idle ���� ���� �ð�
+    public float detectionRange = 5f; // �÷��̾ ������ ����
+    public float attackRange = 2f;    // ���� ����
+    public int maxHealth = 100; // ���� �ִ� ü��
+    private int currentHealth;
+
+    public int attackDamage = 100; // ���� �÷��̾ ������ �� �ִ� ������
+
+    private Animator animator;
+    private Rigidbody2D rb;
+    private Transform player;
+    private Player playerScript; // �÷��̾� ��ũ��Ʈ ����
+    private bool isIdle = false; // Idle ���� ����
+    private bool isMoving = false;
+    private bool isAttacking = false;
+    private bool isHit = false; // �ǰ� ���� ����
+
+    void Start()
+    {
+        animator = GetComponent<Animator>();
+        rb = GetComponent<Rigidbody2D>();
+        currentHealth = maxHealth;
+
+        // �÷��̾ "Player" �±׷� ã�Ƽ� Transform�� ��ũ��Ʈ�� ����
+        GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
+        if (playerObject != null)
+        {
+            player = playerObject.transform;
+            playerScript = playerObject.GetComponent<Player>(); // Player ��ũ��Ʈ ��������
+        }
+        else
+        {
+            Debug.LogWarning("Player with tag 'Player' not found!");
+        }
+
+        SetInitialFacingDirection();
+    }
+
+    void SetInitialFacingDirection()
+    {
+        if (player != null && player.position.x < transform.position.x)
+        {
+            Flip(); // �÷��̾ ���ʿ� ���� ���
+        }
+    }
+
+    void Update()
+    {
+        if (player == null || isHit) return; // �ǰ� ���̸� ���� ����
+
+        float distanceToPlayer = Vector3.Distance(transform.position, player.position);
+
+        if (isIdle)
+        {
+            isMoving = false;
+            isAttacking = false;
+        }
+        else if (distanceToPlayer <= attackRange) // ���� ���� ���� ���� ���
+        {
+            isAttacking = true;
+            isMoving = false;
+        }
+        else if (distanceToPlayer <= detectionRange) // Ž�� ���� ���� ���� ���
+        {
+            isAttacking = false;
+            isMoving = true;
+        }
+        else
+        {
+            isMoving = false;
+            isAttacking = false;
+        }
+
+        animator.SetBool("isIdle", isIdle);
+        animator.SetBool("iswalking", isMoving);
+        animator.SetBool("isattacking", isAttacking);
+    }
+
+    void FixedUpdate()
+    {
+        if (player == null) return;
+
+        if (isHit)
+        {
+            rb.linearVelocity = Vector2.zero; // �ǰ� �߿��� �̵��� ����
+            return;
+        }
+
+        Vector2 directionToPlayer = (player.position - transform.position).normalized;
+        if (directionToPlayer.x > 0 && transform.localScale.x < 0 || directionToPlayer.x < 0 && transform.localScale.x > 0)
+        {
+            Flip();
+        }
+
+        if (isIdle)
+        {
+            rb.linearVelocity = Vector2.zero;
+        }
+        else if (isAttacking)
+        {
+            rb.linearVelocity = Vector2.zero;
+            AttackPlayer();
+        }
+        else if (isMoving)
+        {
+            rb.linearVelocity = new Vector2(directionToPlayer.x * moveSpeed, rb.linearVelocity.y);
+        }
+        else
+        {
+            rb.linearVelocity = Vector2.zero;
+        }
+    }
+
+
+    private void Flip()
+    {
+        Vector3 scale = transform.localScale;
+        scale.x *= -1;
+        transform.localScale = scale;
+    }
+
+    private void AttackPlayer()
+    {
+        if (playerScript != null && !playerScript.IsHit) // �÷��̾ �ǰ� ���°� �ƴ� ����
+        {
+            playerScript.TakeDamage(attackDamage); // �÷��̾��� TakeDamage ȣ��
+        }
+
+        StartCoroutine(AttackAndIdle());
+    }
+
+    private IEnumerator AttackAndIdle()
+    {
+        if (!isIdle)
+        {
+            isAttacking = true;
+            yield return new WaitForSeconds(0.5f); // ���� �ִϸ��̼� �ð�
+
+            isAttacking = false;
+            isIdle = true;
+            yield return new WaitForSeconds(idleDuration); // Idle ���� �ð�
+
+            isIdle = false;
+            isMoving = true;
+        }
+    }
+
+    // ���� �÷��̾� ������ �޾��� �� ȣ��
+    public void TakeDamage(int damage)
+    {
+        if (isHit || currentHealth <= 0) return; // �̹� �ǰ� ���̰ų� ü���� 0 ���϶�� �������� ����
+
+        currentHealth -= damage; // ü�� ����
+
+        if (currentHealth <= 0)
+        {
+            currentHealth = 0;
+            Die();
+        }
+        else
+        {
+            StartCoroutine(HandleHit());
+        }
+    }
+
+    private IEnumerator HandleHit()
+    {
+        isHit = true; // �ǰ� ���� ����
+        rb.linearVelocity = Vector2.zero; // �ǰ� �� �̵� ����
+        animator.SetTrigger("shelder_hit"); // �ǰ� �ִϸ��̼� ����
+
+        yield return new WaitForSeconds(0.5f); // �ǰ� �ִϸ��̼� ���� �ð� (���� ����)
+
+        isHit = false; // �ǰ� ���� ����
+    }
+
+    private void Die()
+    {
+        if (animator.GetCurrentAnimatorStateInfo(0).IsName("shelder_dead"))
+            return; // �̹� lancer_dead ���¶�� �������� ����
+
+        rb.linearVelocity = Vector2.zero; // �̵� ����
+        rb.isKinematic = true; // Rigidbody�� ��Ȱ��ȭ�Ͽ� ������ ��ȣ�ۿ� �ߴ�
+        GetComponent<Collider2D>().enabled = false; // �浹�� ��Ȱ��ȭ
+
+        animator.SetTrigger("shelder_dead"); // lancer_dead �ִϸ��̼� ����
+
+        isHit = true; // ���� �� �ٸ� ��ȣ�ۿ� ����
+        isAttacking = false;
+        isMoving = false;
+
+        Destroy(gameObject, 1f); // �ִϸ��̼� ���� �� �� ����
+    }
+}
