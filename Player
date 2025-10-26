@@ -1,0 +1,277 @@
+using System.Collections;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class Player : MonoBehaviour
+{
+    public float moveSpeed = 5f;
+    private Animator animator;
+    private Rigidbody2D rb;
+    private Vector2 movement;
+    private SpriteRenderer spriteRenderer;
+
+    public bool IsHit { get; private set; }
+    private bool isRolling = false;
+    public bool isAttacking = false;
+    private bool isDead = false;
+
+    public int maxHealth = 100;
+    private int currentHealth;
+    public int attackPower = 50;
+
+    public AudioClip moveSound;
+    public AudioClip rollSound;
+    public AudioClip attackSound1;
+    public AudioClip attackSound2;
+    public AudioClip attackSound3;
+    public AudioClip hitSound;
+    public AudioClip deathSound;
+    private AudioSource audioSource;
+
+    public float attackRange = 1f;
+
+    void Start()
+    {
+        animator = GetComponent<Animator>();
+        rb = GetComponent<Rigidbody2D>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
+
+        audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.playOnAwake = false;
+
+        currentHealth = maxHealth;
+    }
+
+    void Update()
+    {
+        if (IsHit || isDead)
+        {
+            movement = Vector2.zero;
+            animator.SetBool("isWalking", false);
+            return;
+        }
+
+        if (!isDead && !isAttacking)
+        {
+            movement.x = Input.GetAxisRaw("Horizontal");
+
+            if (movement.x > 0)
+                spriteRenderer.flipX = false;
+            else if (movement.x < 0)
+                spriteRenderer.flipX = true;
+
+            if (isRolling)
+            {
+                animator.SetBool("isWalking", false);
+            }
+            else
+            {
+                animator.SetBool("isWalking", movement.x != 0);
+                if (movement.x != 0 && !audioSource.isPlaying)
+                {
+                    PlaySound(moveSound);
+                }
+            }
+        }
+
+        if (Input.GetKeyDown(KeyCode.Space) && !isRolling)
+        {
+            StartCoroutine(Roll());
+        }
+
+        if (Input.GetKeyDown(KeyCode.Z) && !animator.GetBool("isWalking") && !isRolling)
+        {
+            StartCoroutine(Attack("Attack1", attackSound1));
+        }
+        if (Input.GetKeyDown(KeyCode.X) && !animator.GetBool("isWalking") && !isRolling)
+        {
+            StartCoroutine(Attack("Attack2", attackSound2));
+        }
+        if (Input.GetKeyDown(KeyCode.C) && !animator.GetBool("isWalking") && !isRolling)
+        {
+            StartCoroutine(Attack("Attack3", attackSound3));
+        }
+
+        RestrictPlayerMovement();
+    }
+
+    void FixedUpdate()
+    {
+        if (IsHit || isDead)
+        {
+            rb.linearVelocity = Vector2.zero;
+            return;
+        }
+
+        if (isRolling || !isAttacking)
+        {
+            rb.linearVelocity = new Vector2(movement.x * moveSpeed, rb.linearVelocity.y);
+        }
+        else
+        {
+            rb.linearVelocity = Vector2.zero;
+        }
+    }
+
+    void RestrictPlayerMovement()
+    {
+        Vector3 targetPosition = transform.position;
+
+        float minX = -26f;
+        float maxX = 26f;
+        float minY = -5f;
+        float maxY = 5f;
+
+        targetPosition.x = Mathf.Clamp(targetPosition.x, minX, maxX);
+        targetPosition.y = Mathf.Clamp(targetPosition.y, minY, maxY);
+
+        transform.position = targetPosition;
+    }
+
+    private IEnumerator Roll()
+    {
+        isRolling = true;
+        animator.SetTrigger("Roll");
+
+        PlaySound(rollSound);
+
+        float rollDuration = animator.GetCurrentAnimatorStateInfo(0).length;
+        yield return new WaitForSeconds(rollDuration);
+
+        isRolling = false;
+    }
+
+    private IEnumerator Attack(string attackName, AudioClip attackSound)
+    {
+        if (isAttacking) yield break; // �̹� ���� ���̸� ���� �� ��
+        isAttacking = true;
+
+        animator.SetTrigger(attackName);
+        PlaySound(attackSound);
+
+        yield return new WaitForSeconds(0.3f); // Ÿ�� Ÿ�̹� ���
+        DealDamageToEnemy();
+
+        yield return new WaitForSeconds(animator.GetCurrentAnimatorStateInfo(0).length - 0.3f);
+        isAttacking = false; // �ִϸ��̼� ���� �� ����
+    }
+
+    private void DealDamageToEnemy()
+    {
+        if (spriteRenderer.flipX)
+        {
+            Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(transform.position - new Vector3(attackRange, 0f, 0f), attackRange);
+            foreach (var enemy in hitEnemies)
+            {
+                HandleEnemyDamage(enemy);
+            }
+        }
+        else
+        {
+            Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(transform.position + new Vector3(attackRange, 0f, 0f), attackRange);
+            foreach (var enemy in hitEnemies)
+            {
+                HandleEnemyDamage(enemy);
+            }
+        }
+    }
+
+    private void HandleEnemyDamage(Collider2D enemy)
+    {
+        Enemy_lancer lancerScript = enemy.GetComponent<Enemy_lancer>();
+        if (lancerScript != null)
+        {
+            lancerScript.TakeDamage(attackPower);
+        }
+
+        Enemy_skul skulScript = enemy.GetComponent<Enemy_skul>();
+        if (skulScript != null)
+        {
+            skulScript.TakeDamage(attackPower);
+        }
+
+        Enemy_shelder shelderScript = enemy.GetComponent<Enemy_shelder>();
+        if (shelderScript != null)
+        {
+            shelderScript.TakeDamage(attackPower);
+        }
+
+        EnemyTower towerScript = enemy.GetComponent<EnemyTower>();
+        if (towerScript != null)
+        {
+            towerScript.TakeDamage(attackPower);
+        }
+    }
+
+    public void TakeDamage(int damage)
+    {
+        if (isDead || IsHit || isRolling) return;
+
+        currentHealth -= damage;
+
+        if (currentHealth <= 0)
+        {
+            currentHealth = 0;
+            Die();
+        }
+
+        IsHit = true;
+        animator.SetTrigger("Hit");
+        PlaySound(hitSound);
+        StartCoroutine(RecoverFromHit());
+    }
+
+    private IEnumerator RecoverFromHit()
+    {
+        yield return new WaitForSeconds(animator.GetCurrentAnimatorStateInfo(0).length);
+        IsHit = false;
+    }
+
+    private void Die()
+    {
+        if (isDead) return;
+
+        isDead = true;
+        animator.SetTrigger("player_dead");
+
+        rb.linearVelocity = Vector2.zero;
+        IsHit = true;
+        isRolling = false;
+        isAttacking = false;
+
+        PlaySound(deathSound);
+        StartCoroutine(LoadGameOverScene());
+    }
+
+    private IEnumerator LoadGameOverScene()
+    {
+        float deathAnimationDuration = animator.GetCurrentAnimatorStateInfo(0).length;
+        yield return new WaitForSeconds(deathAnimationDuration);
+
+        SceneManager.LoadScene("GameOver");
+    }
+
+    private void PlaySound(AudioClip clip)
+    {
+        if (clip != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(clip);
+        }
+    }
+
+    void OnDrawGizmos()
+    {
+        if (Application.isPlaying)
+        {
+            Gizmos.color = Color.red;
+            if (spriteRenderer.flipX)
+            {
+                Gizmos.DrawWireSphere(transform.position - new Vector3(attackRange, 0f, 0f), attackRange);
+            }
+            else
+            {
+                Gizmos.DrawWireSphere(transform.position + new Vector3(attackRange, 0f, 0f), attackRange);
+            }
+        }
+    }
+}
