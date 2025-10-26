@@ -1,0 +1,129 @@
+using System.Collections;
+using UnityEngine;
+
+public class Enemy_slime : MonoBehaviour
+{
+    public float moveSpeed = 3f;
+    public float moveDuration = 2f;
+    public float stopDuration = 1f;
+
+    private Animator animator;
+    private Rigidbody2D rb;
+    private Transform player;
+    private int moveDirection = -1;
+    private bool isMoving = false;
+    private bool isAttacking = false;
+    private bool playerInRange = false;
+
+    void Start()
+    {
+        animator = GetComponent<Animator>();
+        rb = GetComponent<Rigidbody2D>();
+
+        // �÷��̾ "Player" �±׷� ã�Ƽ� Transform�� ����
+        player = GameObject.FindGameObjectWithTag("Player").transform;
+
+        // �̵��� ������ �ݺ��ϴ� �ڷ�ƾ ����
+        StartCoroutine(MovePattern());
+    }
+
+    void Update()
+    {
+        if (player == null)
+        {
+            Debug.LogWarning("Player with tag 'Player' not found!");
+            return;
+        }
+
+        if (playerInRange)
+        {
+            // �÷��̾ ���� �ȿ� ������ ����
+            isAttacking = true;
+            isMoving = false;
+        }
+        else
+        {
+            // �÷��̾ ������ ����� �̵� ���� ��ȯ
+            isAttacking = false;
+            isMoving = true;
+        }
+
+        // �ִϸ��̼� �Ķ���� ����
+        animator.SetBool("iswalking", isMoving || isAttacking); // ���� �߿��� �ȱ� �ִϸ��̼�
+        animator.SetBool("isattacking", isAttacking);
+    }
+
+    IEnumerator MovePattern()
+    {
+        while (true)
+        {
+            if (!isAttacking) // ���� ���� �ƴ� ���� �̵��� ������ �ݺ�
+            {
+                isMoving = true;
+                yield return new WaitForSeconds(moveDuration);
+
+                isMoving = false;
+                rb.linearVelocity = Vector2.zero; // ���� �� �ӵ� 0���� ����
+                yield return new WaitForSeconds(stopDuration);
+            }
+            else
+            {
+                yield return null; // ���� �߿��� �̵� ���� ���
+            }
+        }
+    }
+
+    void FixedUpdate()
+    {
+        if (player == null) return;
+
+        if (isAttacking)
+        {
+            // �÷��̾ ���� �̵�
+            Vector2 directionToPlayer = (player.position - transform.position).normalized;
+            rb.linearVelocity = new Vector2(directionToPlayer.x * moveSpeed, rb.linearVelocity.y);
+
+            // ���� ���� ��ȯ ó��
+            if (directionToPlayer.x > 0 && moveDirection < 0 || directionToPlayer.x < 0 && moveDirection > 0)
+            {
+                moveDirection *= -1; // ���� ��ȯ
+                Flip();
+            }
+        }
+        else if (isMoving)
+        {
+            // ���� �̵� ����
+            rb.linearVelocity = new Vector2(moveDirection * moveSpeed, rb.linearVelocity.y);
+        }
+        else
+        {
+            rb.linearVelocity = Vector2.zero; // �̵��� ���߰� ���� �غ�
+        }
+    }
+
+    private void Flip()
+    {
+        // ĳ���Ͱ� �¿�� ���������� ó��
+        Vector3 scale = transform.localScale;
+        scale.x *= -1;
+        transform.localScale = scale;
+    }
+
+    // �÷��̾ �ݶ��̴� �ȿ� ������ �� ȣ��
+    private void OnTriggerEnter2D(Collider2D collision)
+    {
+        if (collision.CompareTag("Player"))
+        {
+            playerInRange = true; // �÷��̾ ���� ���� �ȿ� ����
+        }
+    }
+
+    // �÷��̾ �ݶ��̴����� ������ �� ȣ��
+    private void OnTriggerExit2D(Collider2D collision)
+    {
+        if (collision.CompareTag("Player"))
+        {
+            playerInRange = false; // �÷��̾ ���� �������� ���
+        }
+    }
+}
