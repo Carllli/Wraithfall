@@ -1,0 +1,61 @@
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.SceneManagement;
+
+public class ButtonManager : MonoBehaviour
+{
+    // 버튼 연결
+    public Button playButton;      // MainMenu의 "Play" 버튼
+    public Button nextButton;      // Explain의 "Next" 버튼
+    public Button repeatButton;    // GameOver의 "Repeat" 버튼
+    public Button homeButton;      // GameOver의 "Home" 버튼
+                                   // 사운드 재생을 위한 변수
+    public AudioClip clickSound;   // 버튼 클릭 사운드
+    private AudioSource audioSource;
+    void Start()
+    {
+
+        // AudioSource 설정
+        audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.playOnAwake = false; // 자동 재생 방지
+        audioSource.clip = clickSound;
+        // 버튼 이벤트 연결
+        if (playButton != null)
+        {
+            playButton.onClick.RemoveAllListeners();
+            playButton.onClick.AddListener(() => PlaySound());           
+            playButton.onClick.AddListener(() => SceneManager.LoadScene("Explain"));
+        }
+
+        if (nextButton != null)
+        {
+            nextButton.onClick.AddListener(() => PlaySound());
+            nextButton.onClick.AddListener(() => LoadScene("InGame"));
+        }
+        if (repeatButton != null)
+        {
+            repeatButton.onClick.AddListener(() => PlaySound());
+            repeatButton.onClick.AddListener(() => LoadScene("InGame"));
+        }
+
+        if (homeButton != null)
+        {
+            homeButton.onClick.AddListener(() => PlaySound());
+            homeButton.onClick.AddListener(() => LoadScene("MainMenu"));
+        }
+    }
+    // 사운드 재생 메서드
+    private void PlaySound()
+    {
+        if (audioSource != null && clickSound != null)
+        {
+            audioSource.PlayOneShot(clickSound);
+        }
+    }
+    // 지정한 씬을 로드하는 메서드
+    private void LoadScene(string sceneName)
+    {
+        SceneManager.LoadScene(sceneName);
+    }
+}
+
