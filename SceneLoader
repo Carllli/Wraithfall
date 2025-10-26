@@ -1,0 +1,26 @@
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+public class SceneLoader : MonoBehaviour
+{
+    // 버튼 설정 함수
+    public void AssignButtonClick(Button button, string sceneName)
+    {
+        button.onClick.RemoveAllListeners(); // 기존 이벤트 제거
+        button.onClick.AddListener(() => LoadScene(sceneName)); // 새로운 이벤트 추가
+    }
+
+    // 씬 로드 함수
+    public void LoadScene(string sceneName)
+    {
+        SceneManager.LoadScene(sceneName);
+    }
+
+    // 게임 종료
+    public void QuitGame()
+    {
+        Application.Quit();
+        Debug.Log("게임 종료! (에디터에서는 작동하지 않음)");
+    }
+}
